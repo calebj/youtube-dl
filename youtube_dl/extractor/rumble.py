@@ -11,25 +11,8 @@ from ..utils import (
 )
 
 
-class RumbleEmbedIE(InfoExtractor):
-    _VALID_URL = r'https?://(?:www\.)?rumble\.com/embed/(?:[0-9a-z]+\.)?(?P<id>[0-9a-z]+)'
-    _TESTS = [{
-        'url': 'https://rumble.com/embed/v5pv5f',
-        'md5': '36a18a049856720189f30977ccbb2c34',
-        'info_dict': {
-            'id': 'v5pv5f',
-            'ext': 'mp4',
-            'title': 'WMAR 2 News Latest Headlines | October 20, 6pm',
-            'timestamp': 1571611968,
-            'upload_date': '20191020',
-        }
-    }, {
-        'url': 'https://rumble.com/embed/ufe9n.v5pv5f',
-        'only_matching': True,
-    }]
-
-    def _real_extract(self, url):
-        video_id = self._match_id(url)
+class RumbleBaseIE(InfoExtractor):
+    def _do_extract(self, video_id):
         video = self._download_json(
             'https://rumble.com/embedJS/', video_id,
             query={'request': 'video', 'v': video_id})
@@ -65,3 +48,49 @@ class RumbleEmbedIE(InfoExtractor):
             'channel_url': author.get('url'),
             'duration': int_or_none(video.get('duration')),
         }
+
+
+class RumbleEmbedIE(RumbleBaseIE):
+    _VALID_URL = r'https?://(?:www\.)?rumble\.com/embed/(?:[0-9a-z]+\.)?(?P<id>[0-9a-z]+)'
+    _TESTS = [{
+        'url': 'https://rumble.com/embed/v5pv5f',
+        'md5': '36a18a049856720189f30977ccbb2c34',
+        'info_dict': {
+            'id': 'v5pv5f',
+            'ext': 'mp4',
+            'title': 'WMAR 2 News Latest Headlines | October 20, 6pm',
+            'timestamp': 1571611968,
+            'upload_date': '20191020',
+        }
+    }, {
+        'url': 'https://rumble.com/embed/ufe9n.v5pv5f',
+        'only_matching': True,
+    }]
+
+    def _real_extract(self, url):
+        video_id = self._match_id(url)
+        return self._do_extract(video_id)
+
+
+class RumblePageIE(RumbleBaseIE):
+    _VALID_URL = r'https?://(?:www\.)?rumble\.com/(?:[0-9a-z]+\.)?(?P<id>[0-9a-z]+)'
+    _TESTS = [{
+        'url': 'https://rumble.com/v8c1bt',
+        'md5': '36a18a049856720189f30977ccbb2c34',
+        'info_dict': {
+            'id': 'v5pv5f',
+            'ext': 'mp4',
+            'title': 'WMAR 2 News Latest Headlines | October 20, 6pm',
+            'timestamp': 1571611968,
+            'upload_date': '20191020',
+        }
+    }, {
+        'url': 'https://rumble.com/v8c1bt-wmar-2-news-latest-headlines-october-20-6pm.html',
+        'match_only': True
+    }]
+
+    def _real_extract(self, url):
+        posting_id = self._match_id(url)
+        webpage = self._download_webpage(url, posting_id)
+        video_id = self._html_search_regex(r'embedUrl":"https://rumble.com/embed/([0-9a-z]+)/"', webpage, 'video_id')
+        return self._do_extract(video_id)
