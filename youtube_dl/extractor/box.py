@@ -8,13 +8,16 @@ from .common import InfoExtractor
 from ..utils import (
     determine_ext,
     parse_iso8601,
-    # try_get,
+    try_get,
     update_url_query,
+    urljoin,
 )
 
+# TODO: add folder extractor
 
 class BoxIE(InfoExtractor):
     _VALID_URL = r'https?://(?:[^.]+\.)?app\.box\.com/s/(?P<shared_name>[^/]+)/file/(?P<id>\d+)'
+    # TODO: test dash representation decoding
     _TEST = {
         'url': 'https://mlssoccer.app.box.com/s/0evd2o3e08l60lr4ygukepvnkord1o1x/file/510727257538',
         'md5': '1f81b2fd3960f38a40a3b8823e5fcd43',
@@ -62,17 +65,26 @@ class BoxIE(InfoExtractor):
 
         formats = []
 
-        # for entry in (try_get(f, lambda x: x['representations']['entries'], list) or []):
-        #     entry_url_template = try_get(
-        #         entry, lambda x: x['content']['url_template'])
-        #     if not entry_url_template:
-        #         continue
-        #     representation = entry.get('representation')
-        #     if representation == 'dash':
-        #         TODO: append query to every fragment URL
-        #         formats.extend(self._extract_mpd_formats(
-        #             entry_url_template.replace('{+asset_path}', 'manifest.mpd'),
-        #             file_id, query=query))
+        for entry in (try_get(f, lambda x: x['representations']['entries'], list) or []):
+            entry_url_template = try_get(
+                entry, lambda x: x['content']['url_template'])
+            if not entry_url_template:
+                continue
+            representation = entry.get('representation')
+            if representation == 'dash':
+                dash_entries = self._extract_mpd_formats(
+                    entry_url_template.replace('{+asset_path}', 'manifest.mpd'),
+                    file_id,
+                    query=query)
+
+                for format_entry in dash_entries:
+                    frag_base = format_entry['fragment_base_url']
+                    format_entry['format_id'] = "dash_" + format_entry['format_id']
+                    for frag_dict in format_entry['fragments']:
+                        frag_url = frag_dict.get('url') or urljoin(frag_base, frag_dict['path'])
+                        frag_dict['url'] = update_url_query(frag_url, query)
+
+                formats.extend(dash_entries)
 
         authenticated_download_url = f.get('authenticated_download_url')
         if authenticated_download_url and f.get('is_download_available'):
